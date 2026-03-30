@@ -1,38 +1,44 @@
 package com.eltex
 
+import arrow.core.Either
+import arrow.core.left
+import arrow.core.right
 import java.time.Instant
 
 class NoteServiceImpl : NoteService {
     private var nextId = 1L
     private var notes = emptyList<Note>()
 
-    fun updateText(id: Long, text: String) {
-        notes = notes.map {
-            if (it.id == id) {
-                it.copy(text = text)
-            } else
-                it
-        }
+    override fun updateText(id: Long, text: String): Either<NoteError, Note> {
+        val note = notes.find { it.id == id }
+            ?: return NoteError.NoteNotFoundError.left()
+        val updatedNote = note.copy(text = text)
+        notes = notes.map { if (it.id == id) updatedNote else it }
+        return updatedNote.right()
     }
 
-    fun getNote(id: Long): Note? = notes.find { it.id == id }
+    override fun getNote(id: Long): Either<NoteError, Note> {
+        return notes.find { it.id == id }?.right()
+            ?: NoteError.NoteNotFoundError.left()
+    }
 
-    override fun save(note: Note): Note {
+    override fun save(note: Note): Either<NoteError, Note> {
         val currentTime = Instant.now()
         return if (note.id == 0L) {
-            val newNote = note.copy(id = nextId++, createdAt = currentTime, updatedAt = currentTime)
+            val newNote = note.copy(
+                id = nextId++,
+                createdAt = currentTime,
+                updatedAt = currentTime,
+            )
             notes = notes + newNote
-            newNote
+            newNote.right()
         } else {
-            if (notes.none { it.id == note.id }) {throw IllegalArgumentException("Note with id ${note.id} not found") }
-            val updatedNote = note.copy(updatedAt = currentTime)
-            notes = notes.map {
-                if (it.id == note.id) {
-                    updatedNote
-                } else
-                    it
+            if (notes.none { it.id == note.id }) {
+                return NoteError.NoteNotFoundError.left()
             }
-            updatedNote
+            val updatedNote = note.copy(updatedAt = currentTime)
+            notes = notes.map { if (it.id == note.id) updatedNote else it }
+            updatedNote.right()
         }
     }
 
